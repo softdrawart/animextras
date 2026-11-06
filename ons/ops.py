@@ -209,7 +209,18 @@ def bake_frames():
         # keyobj = _obj.parent
 
     keyframes = []
-    for fc in keyobj.animation_data.action.fcurves:
+    anim_data = keyobj.animation_data
+    fcurves = []
+
+    if hasattr(anim_data, "action_slot"): # Blender 4.4+ / 5.2 support
+        from bpy_extras import anim_utils
+        channelbag = anim_utils.action_get_channelbag_for_slot(anim_data.action, anim_data.action_slot)
+        if channelbag:
+            fcurves = channelbag.fcurves
+    elif hasattr(anim_data.action, "fcurves"): # Legacy fallback
+        fcurves = anim_data.action.fcurves
+
+    for fc in fcurves:
         for k in fc.keyframe_points:
             keyframes.append(int(k.co[0]))
             
@@ -333,8 +344,8 @@ class ANMX_set_onion(Operator):
             if (hasattr(obj.parent,"animation_data") and (obj.type == 'MESH')):
                 if (hasattr(obj.parent.animation_data,"action")):
                     return True
-            if hasattr(obj.animation_data,"action"):
-                if hasattr(obj.animation_data.action,"fcurves"):
+            if hasattr(obj.animation_data, "action"):
+                if hasattr(obj.animation_data, "action_slot") or hasattr(obj.animation_data.action, "fcurves"):
                     return ((obj.type == 'MESH') and hasattr(obj.animation_data,"action") or (obj.type=='EMPTY'))
             if hasattr(obj.instance_collection, "all_objects"):
                 return True
@@ -356,10 +367,10 @@ class ANMX_set_onion(Operator):
         
         if obj.parent is None:
             try:
-                obj.animation_data.action.fcurves
+                if not hasattr(obj.animation_data, "action_slot"):
+                    obj.animation_data.action.fcurves
             except AttributeError:
                 pass
-                # return {"CANCELLED"}
         else:
             try:
                 # This right here needs to change for allowing linked rigs
